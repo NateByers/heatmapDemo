@@ -1,0 +1,100 @@
+---
+title: "Heat Map in R"
+author: "Nathan Byers"
+date: "January 4, 2016"
+output: html_document
+---
+
+This is a demonstration of how to make a heat map of Indiana. We'll use the 
+`choroplethr` package, along with some other packages that will make life easier:
+
+```{r, warning=FALSE, message=FALSE}
+library(readxl)
+library(dplyr)
+library(choroplethr)
+library(choroplethrMaps)
+library(ggplot2)
+```
+
+In this demonstration we'll use data that is originally at the zip code level
+and then scale it up to county and larger regions. Here we grab data about 
+indiana zip codes from [www.stats.indiana.edu](http://www.stats.indiana.edu/):
+
+```{r, eval=FALSE}
+tmp = tempfile()
+download.file(url = "http://www.stats.indiana.edu/maptools/county_zips.xls", 
+              destfile = tmp)
+countyZIP <- read_excel(tmp, sheet = 2, skip = 1)
+names(countyZIP) <- c("FIPS", "county", "zip", "percent_zip_in_county")
+
+# filter out a row of NAs at the end and drop the last column
+countyZIP <- filter(countyZIP, !is.na(county))
+countyZIP <- countyZIP[, -5]
+
+# change class to data.frame
+countyZIP <- as.data.frame(countyZIP)
+
+# take a look see
+head(countyZIP)
+```
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+load("county_zips.rda")
+head(countyZIP)
+```
+
+So the `countyZIP` data frame has a record for every zip-county combination. If 
+a zip code straddles two counties, then it will show up twice with the percentage
+of area in each county recorded in the `percent_zip_in_county` column. For
+simplicity sake we will assign one zip code to one county, based on the highest
+percent of zip code area.
+
+```{r}
+countyZIP <- group_by(countyZIP, zip)
+countyZIP <- filter(countyZIP, percent_zip_in_county == max(percent_zip_in_county))
+```
+
+```{r}
+# 
+# # categorize counties by region
+# regions <- read.csv("counties.csv", stringsAsFactors = FALSE)
+# countyZIPregions <- left_join(countyZIP, regions)
+# 
+# # get most recent numbers
+# folders <- list.files("data")
+# latest.folder <- max(folders)
+# frequency <- read.csv(paste("data", latest.folder, "All Biobank Participant Zip Freq 6-22.csv", sep = "/"),
+#                       stringsAsFactors = FALSE)
+# countyZIPregions$ZIP.Code <- as.character(countyZIPregions$ZIP.Code)
+# joined <- inner_join(frequency, countyZIPregions, by = c("Zip.Code" = "ZIP.Code"))
+# 
+# # summarize by region
+# joined.region <- group_by(joined, Region)
+# summed.region <- summarize(joined.region, total = sum(Participant.Frequency))
+# 
+# # attach region totals to county
+# summed <- left_join(regions, summed.region)
+# summed$County <- tolower(summed$County)
+# 
+# 
+# data(county.regions)
+# county.regions <- filter(county.regions, state.name == "indiana")
+# 
+# 
+# summed <- merge(summed, county.regions, by.x = "County", by.y = "county.name")
+# names(summed)[names(summed) == "total"] <- "value"
+# # county_choropleth(summed,
+# #                   #num_colors = 3,
+# #                   legend     = "All IB",
+# #                   state_zoom = c("indiana")) +  scale_fill_brewer(name = "All IB", palette="YlOrRd")
+# county_choropleth(summed,
+#                   legend     = "All IB",
+#                   state_zoom = c("indiana")) +  
+#   scale_fill_manual(
+#     labels=c("0 to 299", "300 to 359", "360 to 399", 
+#              "400 to 499", "500 to 699", "700 to 1,149",
+#              "1,150 to 14,439"), 
+#     values = c("#FFFFB2", "#FED976", "#FEB24C", "#FD8D3C",
+#                "#FC4E2A", "#E31A1C", "#B10026"),
+#     name = "All IB")
+# ggsave(paste0("images/All_IB_regions", latest.folder, ".png"), width = 4, height = 4.5)
+```
