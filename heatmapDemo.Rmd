@@ -5,7 +5,7 @@ date: "January 4, 2016"
 output: html_document
 ---
 
-This is a demonstration of how to make a heat map of Indiana. We'll use the 
+This is a demonstration of how to make a heat map of Indiana. I'll use the 
 `choroplethr` package, along with some other packages that will make life easier:
 
 ```{r, warning=FALSE, message=FALSE}
@@ -16,9 +16,8 @@ library(choroplethrMaps)
 library(ggplot2)
 ```
 
-In this demonstration we'll use data that is originally at the zip code level
-and then scale it up to county and larger regions. Here we grab data about 
-indiana zip codes from [www.stats.indiana.edu](http://www.stats.indiana.edu/):
+I'm going to start with data at the zip code level and then scale it up to county 
+and larger regions. Here I grab data about Indiana zip codes and counties from [www.stats.indiana.edu](http://www.stats.indiana.edu/):
 
 ```{r, eval=FALSE}
 tmp = tempfile()
@@ -38,14 +37,14 @@ countyZIP <- as.data.frame(countyZIP)
 head(countyZIP)
 ```
 ```{r, echo=FALSE, warning=FALSE, message=FALSE}
-load("county_zips.rda")
+load("example_data.rda")
 head(countyZIP)
 ```
 
-So the `countyZIP` data frame has a record for every zip-county combination. If 
+The `countyZIP` data frame has a record for every zip-county combination. If 
 a zip code straddles two counties, then it will show up twice with the percentage
 of area in each county recorded in the `percent_zip_in_county` column. For
-simplicity sake we will assign one zip code to one county, based on the highest
+simplicity I will assign one zip code to one county, based on the highest
 percent of zip code area.
 
 ```{r}
@@ -53,48 +52,47 @@ countyZIP <- group_by(countyZIP, zip)
 countyZIP <- filter(countyZIP, percent_zip_in_county == max(percent_zip_in_county))
 ```
 
+Now I'll grab some income data from the IRS so I have something to plot.
+
+```{r, eval=FALSE}
+# this takes a while to read...
+income <- read.csv("https://www.irs.gov/pub/irs-soi/13zpallagi.csv")
+income <- filter(income, agi_stub == 1)
+income <- select(income, zipcode, N1)
+```
+
+The `income` data frame now has the total number of tax returns that were below
+$25,000 for each zip code in 2013. I'll merge this data with the `countyZIP`
+data frame.
+
 ```{r}
-# 
-# # categorize counties by region
-# regions <- read.csv("counties.csv", stringsAsFactors = FALSE)
-# countyZIPregions <- left_join(countyZIP, regions)
-# 
-# # get most recent numbers
-# folders <- list.files("data")
-# latest.folder <- max(folders)
-# frequency <- read.csv(paste("data", latest.folder, "All Biobank Participant Zip Freq 6-22.csv", sep = "/"),
-#                       stringsAsFactors = FALSE)
-# countyZIPregions$ZIP.Code <- as.character(countyZIPregions$ZIP.Code)
-# joined <- inner_join(frequency, countyZIPregions, by = c("Zip.Code" = "ZIP.Code"))
-# 
-# # summarize by region
-# joined.region <- group_by(joined, Region)
-# summed.region <- summarize(joined.region, total = sum(Participant.Frequency))
-# 
-# # attach region totals to county
-# summed <- left_join(regions, summed.region)
-# summed$County <- tolower(summed$County)
-# 
-# 
-# data(county.regions)
-# county.regions <- filter(county.regions, state.name == "indiana")
-# 
-# 
-# summed <- merge(summed, county.regions, by.x = "County", by.y = "county.name")
-# names(summed)[names(summed) == "total"] <- "value"
-# # county_choropleth(summed,
-# #                   #num_colors = 3,
-# #                   legend     = "All IB",
-# #                   state_zoom = c("indiana")) +  scale_fill_brewer(name = "All IB", palette="YlOrRd")
-# county_choropleth(summed,
-#                   legend     = "All IB",
-#                   state_zoom = c("indiana")) +  
-#   scale_fill_manual(
-#     labels=c("0 to 299", "300 to 359", "360 to 399", 
-#              "400 to 499", "500 to 699", "700 to 1,149",
-#              "1,150 to 14,439"), 
-#     values = c("#FFFFB2", "#FED976", "#FEB24C", "#FD8D3C",
-#                "#FC4E2A", "#E31A1C", "#B10026"),
-#     name = "All IB")
-# ggsave(paste0("images/All_IB_regions", latest.folder, ".png"), width = 4, height = 4.5)
+income$zipcode <- as.character(income$zipcode)
+countyZIP <- left_join(countyZIP, income, by = c("zip" = "zipcode"))
+```
+
+Now I can plot low income data in Indiana. First I'll plot by county, so I need
+to summarize the data at the county level.
+
+```{r}
+county <- group_by(countyZIP, county)
+county <- summarize(county, value = sum(N1, na.rm = TRUE))
+```
+
+Now I'll plot a heat map of the low income data by county, using the `choroplethr`
+package.
+```{r, warning=FALSE}
+county$county <- tolower(county$county)
+data(county.regions)
+county.regions <- filter(county.regions, state.name == "indiana")
+county <- left_join(county, county.regions, by = c("county" = "county.name"))
+county_map <- county_choropleth(county, legend = "Returns under $25,000", 
+                                state_zoom = "indiana")
+county_map
+```
+
+The `choroplethr` map uses `ggplot2`, so we can customize this map just like 
+any other `ggplot2` graph.
+
+```{r, warning=FALSE}
+county_map + scale_fill_brewer(name = "Returns under $25,000", palette = "YlOrRd")
 ```
