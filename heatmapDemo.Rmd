@@ -1,12 +1,12 @@
 ---
-title: "Heat Map in R"
+title: "Indiana Heat Map in R"
 author: "Nathan Byers"
-date: "January 4, 2016"
+date: "January 5, 2016"
 output: html_document
 ---
 
 This is a demonstration of how to make a heat map of Indiana. I'll use the 
-`choroplethr` package, along with some other packages that will make life easier:
+`choroplethr` package, along with some other packages that will make things easier:
 
 ```{r, warning=FALSE, message=FALSE}
 library(readxl)
@@ -70,8 +70,10 @@ income$zipcode <- as.character(income$zipcode)
 countyZIP <- left_join(countyZIP, income, by = c("zip" = "zipcode"))
 ```
 
-Now I can plot low income data in Indiana. First I'll plot by county, so I need
-to summarize the data at the county level.
+Now I can plot low income data in Indiana. First I'll plot by county. 
+(If you would like to plot zip code areas, check out [this vignette](https://rpubs.com/arilamstein/zip-vignette-1) 
+for the `choroplethrZip` package). To do this I need to summarize the data at the
+county level.
 
 ```{r}
 county <- group_by(countyZIP, county)
@@ -80,7 +82,8 @@ county <- summarize(county, value = sum(N1, na.rm = TRUE))
 
 Now I'll plot a heat map of the low income data by county, using the `choroplethr`
 package.
-```{r, warning=FALSE}
+
+```{r, message = FALSE, warning=FALSE}
 county$county <- tolower(county$county)
 data(county.regions)
 county.regions <- filter(county.regions, state.name == "indiana")
@@ -93,6 +96,28 @@ county_map
 The `choroplethr` map uses `ggplot2`, so we can customize this map just like 
 any other `ggplot2` graph.
 
-```{r, warning=FALSE}
+```{r, message = FALSE, warning=FALSE}
 county_map + scale_fill_brewer(name = "Returns under $25,000", palette = "YlOrRd")
+```
+
+But let's say I want to make a county map with the data summarized into larger
+regions. For this data, it would make sense to use the [Indiana Economic Growth
+Regions](http://www.in.gov/dwd/2653.htm). Amazingly, I can't find a text table
+that has this information, so 
+[I made one myself](https://gist.github.com/NateByers/7553659b57a31ef82fea).
+
+```{r}
+growth_regions <- read.csv("https://gist.githubusercontent.com/NateByers/7553659b57a31ef82fea/raw/264c5776dde091f1d24b8710f8e983a4d717f024/economic_growth_regions", stringsAsFactors = FALSE)
+```
+
+Now I summarize the data by region and plot it.
+
+```{r, message=FALSE, warning=FALSE}
+regions <- left_join(county, growth_regions, by = "county") 
+regions <- rename(regions, county_value = value)
+regions <- group_by(regions, growth_region)
+regions <- mutate(regions, value = sum(county_value))
+region_map <- county_choropleth(regions, state_zoom = "indiana") +
+  scale_fill_brewer(name = "Returns under $25,000", palette = "YlOrRd")
+region_map
 ```
